@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Splitwise - Optimize & Settle Debts</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#151f32',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts & FontAwesome -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Vis.js CDN (Interactive Graphs) -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Graph container size */
+        #debt-graph-container {
+            height: 380px;
+            border-radius: 0.75rem;
+            background-color: #1e293b; /* Slate 800 */
+            border: 1px solid #334155;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen pb-12">
+
+    <!-- --- HEADER --- -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-gradient-to-tr from-indigo-500 to-teal-400 rounded-xl shadow-lg shadow-indigo-500/20 text-slate-900">
+                    <i class="fa-solid fa-money-bill-transfer text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 to-teal-300 bg-clip-text text-transparent">Smart Splitwise</h1>
+                    <p class="text-xs text-slate-400">Debt Simplification & UPI Payments</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 bg-slate-800/60 p-1.5 rounded-lg border border-slate-700/50">
+                <button id="tab-btn-members" onclick="switchTab('members')" class="px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 bg-indigo-600 text-white shadow shadow-indigo-600/30">
+                    <i class="fa-solid fa-users mr-1.5"></i>Members
+                </button>
+                <button id="tab-btn-add-expense" onclick="switchTab('add-expense')" class="px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-receipt mr-1.5"></i>Add Expense
+                </button>
+                <button id="tab-btn-ledger" onclick="switchTab('ledger')" class="px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-list-check mr-1.5"></i>Ledger
+                </button>
+                <button id="tab-btn-settle" onclick="switchTab('settle')" class="px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-brain mr-1.5"></i>Simplifier & Pay
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- --- MAIN CONTAINER --- -->
+    <main class="max-w-6xl mx-auto px-4 mt-8">
+
+        <!-- --- KPI STATS CARD ROW --- -->
+        <section class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+            <div class="bg-slate-800 border border-slate-700/80 rounded-xl p-5 shadow-lg relative overflow-hidden group hover:border-indigo-500/50 transition-all duration-300">
+                <div class="absolute -right-4 -bottom-4 text-slate-700/20 text-7xl transition-all duration-300 group-hover:scale-110">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Group Expense</h3>
+                <p id="stat-total-expense" class="text-3xl font-black mt-2 text-indigo-300">₹0.00</p>
+            </div>
+            <div class="bg-slate-800 border border-slate-700/80 rounded-xl p-5 shadow-lg relative overflow-hidden group hover:border-teal-500/50 transition-all duration-300">
+                <div class="absolute -right-4 -bottom-4 text-slate-700/20 text-7xl transition-all duration-300 group-hover:scale-110">
+                    <i class="fa-solid fa-user-group"></i>
+                </div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Members</h3>
+                <p id="stat-total-members" class="text-3xl font-black mt-2 text-teal-300">0</p>
+            </div>
+            <div class="bg-slate-800 border border-slate-700/80 rounded-xl p-5 shadow-lg relative overflow-hidden group hover:border-pink-500/50 transition-all duration-300">
+                <div class="absolute -right-4 -bottom-4 text-slate-700/20 text-7xl transition-all duration-300 group-hover:scale-110">
+                    <i class="fa-solid fa-scale-balanced"></i>
+                </div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Average Expense / Person</h3>
+                <p id="stat-avg-expense" class="text-3xl font-black mt-2 text-pink-300">₹0.00</p>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             TAB 1: MEMBERS
+             ========================================== -->
+        <section id="tab-members" class="tab-content transition-all duration-300">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Add Member Form -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl h-fit">
+                    <h3 class="text-lg font-bold text-slate-100 mb-4">
+                        <i class="fa-solid fa-user-plus mr-2 text-indigo-400"></i>Add New Member
+                    </h3>
+                    <form id="add-member-form" onsubmit="handleAddMember(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
+                            <input type="text" id="member-name" required placeholder="e.g. Alice Smith" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">UPI ID (Optional)</label>
+                            <input type="text" id="member-upi" placeholder="e.g. alice@okaxis" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+                            <p class="text-slate-500 text-[10px] mt-1">Providing a UPI ID enables instant QR Code and link generation for payments.</p>
+                        </div>
+                        <button type="submit" class="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-semibold py-2.5 rounded-lg shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition-all">
+                            Add Member
+                        </button>
+                    </form>
+                </div>
+                <!-- Members List -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl lg:col-span-2">
+                    <h3 class="text-lg font-bold text-slate-100 mb-4">
+                        <i class="fa-solid fa-users-viewfinder mr-2 text-teal-400"></i>Group Members
+                    </h3>
+                    <div id="members-list-container" class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                        <!-- Members populated dynamically -->
+                        <div class="text-center py-8 text-slate-500">
+                            <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+                            <p>Loading members...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             TAB 2: ADD EXPENSE
+             ========================================== -->
+        <section id="tab-add-expense" class="tab-content hidden transition-all duration-300">
+            <div class="max-w-2xl mx-auto bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl">
+                <h3 class="text-lg font-bold text-slate-100 mb-5">
+                    <i class="fa-solid fa-cart-plus mr-2 text-indigo-400"></i>Add Group Expense
+                </h3>
+                <form id="add-expense-form" onsubmit="handleAddExpense(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Expense Description</label>
+                            <input type="text" id="expense-desc" required placeholder="e.g. Dinner, Villa Rent, Taxi" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Amount (₹)</label>
+                            <input type="number" id="expense-amount" required step="0.01" min="0.01" placeholder="0.00" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Who Paid?</label>
+                            <select id="expense-payer" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Split Equally Among Who?</label>
+                            <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 max-h-[160px] overflow-y-auto space-y-2" id="expense-splits-container">
+                                <!-- Checkboxes populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-700/80 pt-4 flex items-center justify-between">
+                        <div class="text-xs text-slate-400">
+                            * Expense will be divided equally among all checked members.
+                        </div>
+                        <button type="submit" class="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-semibold px-6 py-2.5 rounded-lg shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition-all">
+                            Save Expense
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             TAB 3: LEDGER & HISTORY
+             ========================================== -->
+        <section id="tab-ledger" class="tab-content hidden transition-all duration-300">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Expense History Table -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl lg:col-span-2">
+                    <h3 class="text-lg font-bold text-slate-100 mb-4">
+                        <i class="fa-solid fa-history mr-2 text-indigo-400"></i>Expense Log
+                    </h3>
+                    <div id="expense-log-container" class="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+                <!-- Net Balances List -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl h-fit">
+                    <h3 class="text-lg font-bold text-slate-100 mb-4">
+                        <i class="fa-solid fa-scale-unbalanced-block mr-2 text-teal-400"></i>Running Balances
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-4">Positive balances show money owed to a member. Negative balances show money a member owes.</p>
+                    <div id="balances-list-container" class="space-y-3">
+                        <!-- Balances populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             TAB 4: DEBT SETTLEMENT & PAYMENTS
+             ========================================== -->
+        <section id="tab-settle" class="tab-content hidden transition-all duration-300">
+            <!-- Algorithm Comparison View -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <!-- Before Simplification -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-slate-100">
+                            <i class="fa-solid fa-arrow-right-arrows-left mr-2 text-slate-400"></i>Before Simplification
+                        </h3>
+                        <span class="text-xs bg-slate-700/60 text-slate-300 border border-slate-600 px-2.5 py-1 rounded-full font-semibold">Direct Bilateral Netting</span>
+                    </div>
+                    <div id="before-list" class="space-y-3 max-h-[220px] overflow-y-auto pr-2">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+                <!-- After Simplification -->
+                <div class="bg-slate-800 border border-indigo-950 rounded-xl p-6 shadow-xl ring-2 ring-indigo-500/20">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-indigo-200">
+                            <i class="fa-solid fa-wand-magic-sparkles mr-2 text-teal-400 animate-pulse"></i>After Simplification
+                        </h3>
+                        <span class="text-xs bg-indigo-950 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded-full font-semibold">Min-Cash Flow Optimized</span>
+                    </div>
+                    <div id="after-list" class="space-y-3 max-h-[220px] overflow-y-auto pr-2">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visual Networks & Payments Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Graph Visualization -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl lg:col-span-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-slate-100">
+                            <i class="fa-solid fa-circle-nodes mr-2 text-indigo-400"></i>Transaction Network Graph
+                        </h3>
+                        <div class="flex bg-slate-900 border border-slate-700 p-1 rounded-lg">
+                            <button id="toggle-graph-before" onclick="setGraphMode('before')" class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-400 hover:text-slate-200">Bilateral</button>
+                            <button id="toggle-graph-after" onclick="setGraphMode('after')" class="px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white shadow shadow-indigo-600/30">Optimized</button>
+                        </div>
+                    </div>
+                    <div id="debt-graph-container"></div>
+                    <p class="text-[11px] text-slate-400 mt-2 text-center">
+                        <i class="fa-solid fa-info-circle mr-1"></i>Nodes represent members. Directed arrows represent the flow of cash. Drag nodes to reposition.
+                    </p>
+                </div>
+                <!-- Settle Portal -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl h-fit">
+                    <h3 class="text-lg font-bold text-slate-100 mb-3">
+                        <i class="fa-solid fa-wallet mr-2 text-teal-400"></i>Settle Debts
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-6">Select a transaction below to settle instantly using UPI apps or QR codes.</p>
+                    <div id="payments-list-container" class="space-y-4 max-h-[350px] overflow-y-auto pr-2">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==========================================
+         UPI QR MODAL
+         ========================================== -->
+    <div id="qr-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onclick="closeQrModal()"></div>
+        <!-- Content -->
+        <div class="relative bg-slate-800 border border-slate-700 w-[90%] max-w-sm rounded-xl p-6 shadow-2xl flex flex-col items-center">
+            <button onclick="closeQrModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h4 class="text-lg font-extrabold text-slate-100 mb-1" id="qr-modal-title">Pay Charlie</h4>
+            <p class="text-xs text-indigo-400 font-bold mb-4" id="qr-modal-amount">Amount: ₹100.00</p>
+            
+            <div class="bg-white p-3 rounded-lg shadow-inner mb-4">
+                <img id="qr-modal-image" src="" alt="UPI QR Code" class="w-48 h-48">
+            </div>
+            
+            <p class="text-slate-400 text-xs text-center leading-relaxed">
+                Scan this QR code with Google Pay, PhonePe, Paytm, or BHIM to pay instantly.
+            </p>
+            <p class="text-[10px] text-slate-500 mt-4" id="qr-modal-upi-id">UPI ID: charlie@upi</p>
+        </div>
+    </div>
+
+    <!-- --- JS APP LOGIC --- -->
+    <script>
+        // Global Application State
+        let state = {
+            members: [],
+            expenses: [],
+            debts: {
+                net_balances: [],
+                before_debts: [],
+                after_debts: []
+            },
+            graphMode: 'after' // 'before' or 'after'
+        };
+        
+        let visNetwork = null;
+
+        // Initialize App on DOM Content Loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchData();
+        });
+
+        // Fetch all data from Flask API
+        async function fetchData() {
+            try {
+                const [membersRes, expensesRes, debtsRes] = await Promise.all([
+                    fetch('/api/members'),
+                    fetch('/api/expenses'),
+                    fetch('/api/debts')
+                ]);
+
+                state.members = await membersRes.json();
+                state.expenses = await expensesRes.json();
+                state.debts = await debtsRes.json();
+
+                renderAll();
+            } catch (err) {
+                console.error("Error fetching data:", err);
+                alert("Failed to load application data. Is the Flask server running?");
+            }
+        }
+
+        // Render entire application UI
+        function renderAll() {
+            renderKPIs();
+            renderMembersTab();
+            renderAddExpenseTab();
+            renderLedgerTab();
+            renderSettleTab();
+        }
+
+        // Render KPI Metrics Card values
+        function renderKPIs() {
+            const total = state.expenses.reduce((sum, e) => sum + e.amount, 0);
+            const count = state.members.length;
+            const avg = count > 0 ? total / count : 0.0;
+
+            document.getElementById('stat-total-expense').textContent = `₹${total.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('stat-total-members').textContent = count;
+            document.getElementById('stat-avg-expense').textContent = `₹${avg.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            // Hide all contents
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            // Remove active classes from buttons
+            document.querySelectorAll('header button').forEach(el => {
+                el.className = "px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200";
+            });
+
+            // Show selected content
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            // Add active styling to clicked button
+            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+            activeBtn.className = "px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 bg-indigo-600 text-white shadow shadow-indigo-600/30";
+            
+            // Draw Vis graph if Settle Tab is opened
+            if (tabId === 'settle') {
+                setTimeout(renderGraph, 100);
+            }
+        }
+
+        // ==========================================
+        // MEMBERS LOGIC
+        // ==========================================
+        function renderMembersTab() {
+            const container = document.getElementById('members-list-container');
+            if (state.members.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-500">
+                        <i class="fa-solid fa-users text-4xl mb-3"></i>
+                        <p class="font-medium text-slate-400">No members in the group yet.</p>
+                        <p class="text-xs">Add group members using the form on the left.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = state.members.map(m => `
+                <div class="flex items-center justify-between bg-slate-900 border border-slate-700/60 p-4 rounded-xl hover:border-slate-600 transition-all duration-200 group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold text-lg">
+                            ${m.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100">${m.name}</h4>
+                            <p class="text-xs text-slate-400 mt-0.5">
+                                <i class="fa-solid fa-credit-card mr-1 text-slate-500"></i>
+                                ${m.upi_id ? `<span class="font-mono text-indigo-300">${m.upi_id}</span>` : '<span class="text-slate-500 italic">No UPI configured</span>'}
+                            </p>
+                        </div>
+                    </div>
+                    <button onclick="handleDeleteMember(${m.id})" class="text-slate-500 hover:text-red-400 p-2.5 rounded-lg hover:bg-red-500/10 active:scale-95 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function handleAddMember(event) {
+            event.preventDefault();
+            const nameEl = document.getElementById('member-name');
+            const upiEl = document.getElementById('member-upi');
+            
+            const payload = {
+                name: nameEl.value.trim(),
+                upi_id: upiEl.value.trim()
+            };
+
+            try {
+                const res = await fetch('/api/members', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    nameEl.value = '';
+                    upiEl.value = '';
+                    fetchData();
+                } else {
+                    alert("Error: " + data.error);
+                }
+            } catch (err) {
+                console.error("Add member error:", err);
+            }
+        }
+
+        async function handleDeleteMember(memberId) {
+            if (!confirm("Are you sure you want to delete this member? All their expenses and splits will be deleted too.")) return;
+            try {
+                const res = await fetch(`/api/members/${memberId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    fetchData();
+                } else {
+                    const data = await res.json();
+                    alert("Error: " + data.error);
+                }
+            } catch (err) {
+                console.error("Delete member error:", err);
+            }
+        }
+
+        // ==========================================
+        // ADD EXPENSE LOGIC
+        // ==========================================
+        function renderAddExpenseTab() {
+            const payerSelect = document.getElementById('expense-payer');
+            const splitsContainer = document.getElementById('expense-splits-container');
+
+            if (state.members.length < 2) {
+                payerSelect.innerHTML = `<option value="">Add at least 2 members first</option>`;
+                payerSelect.disabled = true;
+                splitsContainer.innerHTML = `<div class="text-xs text-slate-500 py-4 text-center">Add at least 2 members first</div>`;
+                return;
+            }
+
+            payerSelect.disabled = false;
+            
+            // Populate Payer Select options
+            payerSelect.innerHTML = state.members.map(m => `
+                <option value="${m.id}">${m.name}</option>
+            `).join('');
+
+            // Populate Splits checklist
+            splitsContainer.innerHTML = state.members.map(m => `
+                <label class="flex items-center gap-2.5 py-1 px-2 hover:bg-slate-800/80 rounded-md cursor-pointer select-none">
+                    <input type="checkbox" name="split-members" value="${m.id}" checked class="rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900 w-4.5 h-4.5">
+                    <span class="text-sm text-slate-200 font-medium">${m.name}</span>
+                </label>
+            `).join('');
+        }
+
+        async function handleAddExpense(event) {
+            event.preventDefault();
+            const descEl = document.getElementById('expense-desc');
+            const amtEl = document.getElementById('expense-amount');
+            const payerEl = document.getElementById('expense-payer');
+            
+            // Collect checked splits
+            const checkedBoxes = document.querySelectorAll('input[name="split-members"]:checked');
+            const splitMemberIds = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+
+            if (splitMemberIds.length === 0) {
+                alert("Please select at least one member to split the expense with.");
+                return;
+            }
+
+            const payload = {
+                description: descEl.value.trim(),
+                amount: parseFloat(amtEl.value),
+                payer_id: parseInt(payerEl.value),
+                split_member_ids: splitMemberIds
+            };
+
+            try {
+                const res = await fetch('/api/expenses', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    descEl.value = '';
+                    amtEl.value = '';
+                    fetchData();
+                    switchTab('ledger'); // Send user to ledger view
+                } else {
+                    alert("Error: " + data.error);
+                }
+            } catch (err) {
+                console.error("Add expense error:", err);
+            }
+        }
+
+        // ==========================================
+        // LEDGER LOGIC
+        // ==========================================
+        function renderLedgerTab() {
+            const logContainer = document.getElementById('expense-log-container');
+            const balancesContainer = document.getElementById('balances-list-container');
+
+            // Render Expense History Log
+            if (state.expenses.length === 0) {
+                logContainer.innerHTML = `
+                    <div class="text-center py-16 text-slate-500 bg-slate-900/40 rounded-xl border border-slate-700/30">
+                        <i class="fa-solid fa-receipt text-4xl mb-3"></i>
+                        <p class="font-medium text-slate-400">No expenses logged yet.</p>
+                        <p class="text-xs">Go to 'Add Expense' to record your first transaction.</p>
+                    </div>
+                `;
+            } else {
+                logContainer.innerHTML = state.expenses.map(e => {
+                    const dateStr = new Date(e.created_at).toLocaleDateString('en-IN', {
+                        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    });
+                    const splitNames = e.splits.map(s => s.name).join(', ');
+                    
+                    return `
+                        <div class="bg-slate-900 border border-slate-700/60 p-4 rounded-xl hover:border-slate-600 transition-all flex items-start justify-between group">
+                            <div>
+                                <h4 class="font-bold text-slate-100 text-base">${e.description}</h4>
+                                <p class="text-xs text-slate-400 mt-1">
+                                    <span class="font-semibold text-slate-200">₹${e.amount.toFixed(2)}</span> paid by 
+                                    <span class="font-semibold text-slate-200">${e.payer_name}</span> 
+                                    on ${dateStr}
+                                </p>
+                                <p class="text-[11px] text-slate-500 mt-1.5 font-medium leading-relaxed">
+                                    <i class="fa-solid fa-people-group mr-1.5"></i>Involved: ${splitNames}
+                                </p>
+                            </div>
+                            <button onclick="handleDeleteExpense(${e.id})" class="text-slate-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all active:scale-95">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Render Running Net Balances
+            if (state.members.length === 0) {
+                balancesContainer.innerHTML = `<div class="text-xs text-slate-500 text-center py-4">Add members to compute balances.</div>`;
+                return;
+            }
+
+            balancesContainer.innerHTML = state.debts.net_balances.map(b => {
+                let badgeClass = "bg-slate-900 border-slate-700/50 text-slate-400";
+                let textClass = "text-slate-300";
+                let valStr = `₹${Math.abs(b.balance).toFixed(2)}`;
+                let labelStr = "settled";
+
+                if (b.balance > 0.01) {
+                    badgeClass = "bg-emerald-950/60 border-emerald-800/30 text-emerald-400";
+                    textClass = "text-emerald-400 font-bold";
+                    labelStr = "receives";
+                } else if (b.balance < -0.01) {
+                    badgeClass = "bg-rose-950/60 border-rose-800/30 text-rose-400";
+                    textClass = "text-rose-400 font-bold";
+                    labelStr = "owes";
+                } else {
+                    valStr = "₹0.00";
+                }
+
+                return `
+                    <div class="flex items-center justify-between p-3 bg-slate-900/60 border border-slate-700/50 rounded-lg">
+                        <span class="font-semibold text-slate-200 text-sm">${b.name}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${badgeClass}">${labelStr}</span>
+                            <span class="text-sm ${textClass}">${valStr}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function handleDeleteExpense(expenseId) {
+            if (!confirm("Are you sure you want to delete this expense?")) return;
+            try {
+                const res = await fetch(`/api/expenses/${expenseId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    fetchData();
+                } else {
+                    const data = await res.json();
+                    alert("Error: " + data.error);
+                }
+            } catch (err) {
+                console.error("Delete expense error:", err);
+            }
+        }
+
+        // ==========================================
+        // DEBT SIMPLIFIER & PAYMENTS LOGIC
+        // ==========================================
+        function renderSettleTab() {
+            const beforeList = document.getElementById('before-list');
+            const afterList = document.getElementById('after-list');
+            const paymentsContainer = document.getElementById('payments-list-container');
+
+            // 1. Render Before Simplification List
+            if (state.debts.before_debts.length === 0) {
+                beforeList.innerHTML = `<div class="text-sm text-slate-500 text-center py-6">All settled! No transactions.</div>`;
+            } else {
+                beforeList.innerHTML = state.debts.before_debts.map(d => `
+                    <div class="flex items-center justify-between p-2.5 bg-slate-900/50 border border-slate-700/50 rounded-lg text-sm">
+                        <span><b class="text-slate-200">${d.debtor_name}</b> owes <b class="text-slate-300">${d.creditor_name}</b></span>
+                        <span class="font-bold text-rose-400">₹${d.amount.toFixed(2)}</span>
+                    </div>
+                `).join('');
+            }
+
+            // 2. Render After Simplification List
+            if (state.debts.after_debts.length === 0) {
+                afterList.innerHTML = `<div class="text-sm text-slate-500 text-center py-6">All settled! No transactions.</div>`;
+            } else {
+                afterList.innerHTML = state.debts.after_debts.map(d => `
+                    <div class="flex items-center justify-between p-2.5 bg-indigo-950/20 border border-indigo-500/20 rounded-lg text-sm">
+                        <span><b class="text-indigo-200">${d.debtor_name}</b> owes <b class="text-indigo-300">${d.creditor_name}</b></span>
+                        <span class="font-bold text-teal-400">₹${d.amount.toFixed(2)}</span>
+                    </div>
+                `).join('');
+            }
+
+            // 3. Render Payments/Settle Portal Cards
+            if (state.debts.after_debts.length === 0) {
+                paymentsContainer.innerHTML = `
+                    <div class="text-center py-12 text-slate-500">
+                        <i class="fa-solid fa-circle-check text-3xl text-emerald-500 mb-2"></i>
+                        <p class="font-medium text-slate-400">No active debts!</p>
+                        <p class="text-xs">Your group is completely settled.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            paymentsContainer.innerHTML = state.debts.after_debts.map((d, idx) => {
+                const upiId = d.creditor_upi || '';
+                
+                return `
+                    <div class="bg-slate-900 border border-slate-700/80 rounded-xl p-4 shadow flex flex-col gap-3">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Transaction #${idx+1}</span>
+                            <span class="text-base font-black text-teal-400">₹${d.amount.toFixed(2)}</span>
+                        </div>
+                        <div class="text-sm leading-relaxed">
+                            <span class="font-bold text-slate-200">${d.debtor_name}</span> owes 
+                            <span class="font-bold text-slate-200">${d.creditor_name}</span>
+                        </div>
+                        
+                        <!-- UPI Action block -->
+                        <div class="mt-1 flex flex-col gap-2">
+                            ${upiId ? `
+                                <div class="text-[10px] font-mono text-indigo-400 bg-indigo-950/40 border border-indigo-900/30 px-2.5 py-1 rounded w-fit">
+                                    <i class="fa-solid fa-circle-nodes mr-1 text-slate-400"></i>UPI ID: ${upiId}
+                                </div>
+                                <div class="flex gap-2 w-full">
+                                    <a href="upi://pay?pa=${upiId}&pn=${encodeURIComponent(d.creditor_name)}&am=${d.amount.toFixed(2)}&cu=INR" class="flex-1">
+                                        <button class="w-full text-center bg-gradient-to-tr from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold py-2 rounded-lg text-xs shadow-md active:scale-95 transition-all">
+                                            <i class="fa-solid fa-mobile-screen-button mr-1.5"></i>Pay via App
+                                        </button>
+                                    </a>
+                                    <button onclick="openQrModal('${upiId}', '${d.creditor_name}', ${d.amount})" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2 rounded-lg text-xs border border-slate-700 active:scale-95 transition-all">
+                                        <i class="fa-solid fa-qrcode mr-1.5"></i>Show QR
+                                    </button>
+                                </div>
+                            ` : `
+                                <div class="bg-amber-950/30 border border-amber-900/30 p-2.5 rounded-lg flex flex-col gap-2">
+                                    <span class="text-[10px] text-amber-300 font-semibold leading-tight">
+                                        <i class="fa-solid fa-triangle-exclamation mr-1"></i>No UPI configured for ${d.creditor_name}.
+                                    </span>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="temp-upi-${idx}" placeholder="Enter UPI (e.g. name@upi)" class="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 placeholder-slate-600 focus:outline-none">
+                                        <button onclick="handleTempUpiPay(${idx}, '${d.creditor_name}', ${d.amount})" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded text-xs active:scale-95 transition-all">
+                                            Go
+                                        </button>
+                                    </div>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Temporary UPI pay trigger when no UPI configured
+        function handleTempUpiPay(idx, name, amount) {
+            const inputVal = document.getElementById(`temp-upi-${idx}`).value.trim();
+            if (!inputVal) {
+                alert("Please enter a valid UPI ID.");
+                return;
+            }
+            // Generate link and trigger QR code
+            openQrModal(inputVal, name, amount);
+        }
+
+        // ==========================================
+        // GRAPH VISUALIZATION (VIS.JS)
+        // ==========================================
+        function setGraphMode(mode) {
+            state.graphMode = mode;
+            // Update toggle buttons styling
+            const btnBefore = document.getElementById('toggle-graph-before');
+            const btnAfter = document.getElementById('toggle-graph-after');
+            
+            if (mode === 'before') {
+                btnBefore.className = "px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white shadow shadow-indigo-600/30";
+                btnAfter.className = "px-3 py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-slate-200";
+            } else {
+                btnAfter.className = "px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white shadow shadow-indigo-600/30";
+                btnBefore.className = "px-3 py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-slate-200";
+            }
+            renderGraph();
+        }
+
+        function renderGraph() {
+            const container = document.getElementById('debt-graph-container');
+            
+            // Build Graph Nodes
+            const graphNodes = state.members.map(m => ({
+                id: m.id,
+                label: m.name
+            }));
+
+            // Select Debts based on toggle Mode
+            const targetDebts = state.graphMode === 'before' ? state.debts.before_debts : state.debts.after_debts;
+
+            // Build Graph Edges
+            const graphEdges = targetDebts.map(d => ({
+                from: d.debtor_id,
+                to: d.creditor_id,
+                label: `₹${d.amount.toFixed(2)}`,
+                title: `${d.debtor_name} owes ${d.creditor_name} ₹${d.amount.toFixed(2)}`
+            }));
+
+            // Create Vis.js DataSets
+            const nodes = new vis.DataSet(graphNodes);
+            const edges = new vis.DataSet(graphEdges);
+            const data = { nodes, edges };
+
+            // Premium Styling Options
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 20,
+                    font: {
+                        color: '#f8fafc',
+                        size: 13,
+                        face: 'Inter',
+                        strokeWidth: 2,
+                        strokeColor: '#0f172a'
+                    },
+                    color: {
+                        background: '#6366f1',
+                        border: '#818cf8',
+                        highlight: {
+                            background: '#4f46e5',
+                            border: '#ffffff'
+                        }
+                    },
+                    borderWidth: 2
+                },
+                edges: {
+                    arrows: {
+                        to: { enabled: true, scaleFactor: 1.0 }
+                    },
+                    color: { 
+                        color: state.graphMode === 'before' ? '#64748b' : '#38bdf8', 
+                        highlight: '#2dd4bf',
+                        hover: '#2dd4bf'
+                    },
+                    font: {
+                        color: state.graphMode === 'before' ? '#f87171' : '#2dd4bf',
+                        size: 11,
+                        face: 'Inter',
+                        strokeWidth: 2,
+                        strokeColor: '#1e293b',
+                        align: 'horizontal'
+                    },
+                    smooth: {
+                        enabled: true,
+                        type: 'curvedCW',
+                        roundness: 0.15
+                    }
+                },
+                physics: {
+                    enabled: true,
+                    stabilization: true,
+                    barnesHut: {
+                        gravitationalConstant: -1800,
+                        centralGravity: 0.35,
+                        springLength: 130,
+                        springConstant: 0.04
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    dragNodes: true,
+                    zoomView: true
+                }
+            };
+
+            // Instantiate or Update Vis.js Network
+            if (visNetwork) {
+                visNetwork.destroy();
+            }
+            visNetwork = new vis.Network(container, data, options);
+        }
+
+        // ==========================================
+        // UPI QR MODAL LOGIC
+        // ==========================================
+        function openQrModal(upiId, name, amount) {
+            const modal = document.getElementById('qr-modal');
+            const titleEl = document.getElementById('qr-modal-title');
+            const amountEl = document.getElementById('qr-modal-amount');
+            const upiIdEl = document.getElementById('qr-modal-upi-id');
+            const imageEl = document.getElementById('qr-modal-image');
+
+            // Encode payment URL
+            // upi://pay?pa=receiver_upi_id&pn=Name&am=Amount&cu=INR
+            const encodedName = encodeURIComponent(name);
+            const upiUrl = `upi://pay?pa=${upiId}&pn=${encodedName}&am=${amount.toFixed(2)}&cu=INR`;
+            
+            // Build dynamic QRServer URL
+            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUrl)}`;
+
+            // Populate Modal details
+            titleEl.textContent = `Pay ${name}`;
+            amountEl.textContent = `Amount: ₹${amount.toFixed(2)}`;
+            upiIdEl.textContent = `UPI ID: ${upiId}`;
+            imageEl.src = qrApiUrl;
+
+            // Show modal
+            modal.classList.remove('hidden');
+        }
+
+        function closeQrModal() {
+            const modal = document.getElementById('qr-modal');
+            modal.classList.add('hidden');
+            document.getElementById('qr-modal-image').src = '';
+        }
+    </script>
+</body>
+</html>
